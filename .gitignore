@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+data/
+lake/
+logs/
+metastore_db/
+derby.log
+spark-warehouse/
+.pytest_cache/
+*.egg-info/
