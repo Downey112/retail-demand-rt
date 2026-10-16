@@ -1,0 +1,16 @@
+table dim_store
+	lineageTag: c999ff51-481e-569e-8d0e-ba93606671c9
+
+	column store_id
+		dataType: string
+		lineageTag: b1fea3fa-50c0-578e-a386-69071934c8f5
+		summarizeBy: none
+		sourceColumn: store_id
+
+	partition dim_store = m
+		mode: import
+		source =
+				let
+				    Source = Table.Distinct(Table.SelectColumns(fact_inventory, {"store_id"}))
+				in
+				    Source

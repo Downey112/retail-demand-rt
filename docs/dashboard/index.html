@@ -1,0 +1,404 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retail Demand Replay</title>
+<meta name="description" content="Web version of the Power BI report for a 28-day real-time replay of M5 retail demand through Kafka and Spark.">
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb; --card: #ffffff;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: #e9e8e2;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --good: #006300; --bad: #d03b3b;
+    --pill: #f0efec; --pill-on: #0b0b0b; --pill-on-ink: #fcfcfb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #0d0d0d; --surface: #1a1a19; --card: #1a1a19;
+      --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: #2c2c2a;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --good: #0ca30c; --bad: #e66767;
+      --pill: #2c2c2a; --pill-on: #f0efec; --pill-on-ink: #1a1a19;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #0d0d0d; --surface: #1a1a19; --card: #1a1a19;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: #2c2c2a;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good: #0ca30c; --bad: #e66767;
+    --pill: #2c2c2a; --pill-on: #f0efec; --pill-on-ink: #1a1a19;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+    font: 14px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 13px; margin: 0; max-width: 760px; }
+  .sub a { color: inherit; }
+  .controls { display: flex; flex-direction: column; gap: 6px; }
+  .controls .lab { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pills button { border: 0; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px;
+    background: var(--pill); color: var(--ink); cursor: pointer; }
+  .pills button[aria-pressed="true"] { background: var(--pill-on); color: var(--pill-on-ink); font-weight: 600; }
+  .pills button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+  .grid { display: grid; gap: 8px; }
+  .kpis { grid-template-columns: repeat(5, 1fr); margin-bottom: 8px; }
+  .row2 { grid-template-columns: 2fr 2fr 1fr; margin-bottom: 8px; }
+  .row3 { grid-template-columns: 1fr 1fr; margin-bottom: 24px; }
+  .row4 { grid-template-columns: 1fr 2fr; margin-bottom: 8px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+  .kpi .t { font-size: 12px; color: var(--ink-2); }
+  .kpi .v { font-size: 28px; font-weight: 600; margin: 2px 0; font-variant-numeric: tabular-nums; }
+  .kpi .d { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .kpi .d.good { color: var(--good); } .kpi .d.bad { color: var(--bad); }
+  h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  h3 { font-size: 13px; font-weight: 600; margin: 0; }
+  .note { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+  .section { font-size: 18px; font-weight: 600; margin: 8px 0 12px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend i.dash { background: none !important; border-top: 2px dashed; height: 0; }
+  .legend i.sq { width: 10px; height: 10px; border-radius: 2px; }
+  .chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+  svg .lbl { fill: var(--ink-2); font-weight: 600; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+  .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+    white-space: nowrap; opacity: 0; transition: opacity .08s; z-index: 5; color: var(--ink); }
+  .tip b { font-weight: 600; }
+  .tip .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: var(--ink-2); font-weight: 600; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+  td.n, th.n { text-align: right; }
+  tfoot td { font-weight: 600; border-bottom: 0; }
+  .scroll { overflow-x: auto; }
+  .log { max-height: 420px; overflow: auto; }
+  .log td { white-space: nowrap; }
+  .log thead th { position: sticky; top: 0; background: var(--card); }
+  details { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+  details summary { cursor: pointer; }
+  details table { margin-top: 6px; font-size: 12px; }
+  .more { margin-top: 8px; border: 0; background: var(--pill); color: var(--ink); border-radius: 6px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+  footer a { color: inherit; }
+  .err { color: var(--bad); }
+  @media (max-width: 1000px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .row2, .row3, .row4 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .wrap { padding: 16px; }
+    .kpis { grid-template-columns: 1fr; }
+    .kpi .v { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Real-Time Retail Demand · 28-day replay</h1>
+      <p class="sub">M5 Walmart sales streamed through Kafka and Spark Structured Streaming, 23 May to 19 June 2016 ·
+        4 California stores, 12,196 SKU-stores. Stock levels, costs and the e-commerce share are simulated; the demand is real.
+        Web version of the <a href="https://github.com/Downey112/retail-demand-rt/tree/master/powerbi">Power BI report</a>.</p>
+    </div>
+    <div class="controls">
+      <span class="lab" id="store-lab">Store</span>
+      <div class="pills" id="stores" role="group" aria-labelledby="store-lab"></div>
+    </div>
+  </header>
+
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid row2">
+    <div class="card"><h2 id="t-fill">Daily fill rate</h2><p class="note">Units sold ÷ (sold + lost) · week 1 runs on simulated opening stock</p><div class="chart" id="c-fill"></div></div>
+    <div class="card"><h2 id="t-demand">Actual vs next-day forecast, units</h2>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Actual</span><span><i class="dash" style="border-color:var(--s2)"></i>Forecast</span></div>
+      <div class="chart" id="c-demand"></div></div>
+    <div class="card"><h2>Units lost to stock-outs</h2><p class="note">All 28 days · selected store highlighted</p><div class="chart" id="c-lost"></div></div>
+  </div>
+
+  <div class="grid row3">
+    <div class="card"><h2 id="t-dept">Forecast accuracy by department</h2><p class="note">Sorted by WAPE, worst first · stock-capped = sales limited by stock that day</p><div class="scroll" id="dept"></div></div>
+    <div class="card"><h2>Weekly champion / challenger retrains</h2><p class="note">A challenger is promoted only if it beats the champion on the latest week</p><div class="scroll" id="retrain"></div></div>
+  </div>
+
+  <div class="section">Alerts</div>
+  <div class="grid row4">
+    <div class="card"><h2>Alerts by type</h2><p class="note" id="n-alerts"></p><div class="chart" id="c-atype"></div></div>
+    <div class="card"><h2>Alerts raised per day</h2>
+      <div class="legend" id="lg-aday"></div>
+      <div class="chart" id="c-aday"></div></div>
+  </div>
+  <div class="card"><h2>Alert log, newest first</h2>
+    <p class="note">STOCKOUT is raised at end of day, STOCKOUT_INTRADAY during the day, DEMAND_ANOMALY when a department is more than 25% off its forecast.</p>
+    <div class="log" id="log"></div><button class="more" id="more" hidden>Show 200 more</button></div>
+
+  <footer id="foot">Source: <a href="https://github.com/Downey112/retail-demand-rt">github.com/Downey112/retail-demand-rt</a> · data exported by <code>scripts/export_bi.py</code></footer>
+</div>
+<div class="tip" id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const STORES = ["All", "CA_1", "CA_2", "CA_3", "CA_4"];
+const ALERT_TYPES = [["STOCKOUT", "--s1"], ["STOCKOUT_INTRADAY", "--s2"], ["DEMAND_ANOMALY", "--s3"]];
+let D, store = "All", logLimit = 200;
+
+const $ = id => document.getElementById(id);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (v, d = 0) => v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (v, d = 1) => (100 * v).toFixed(d) + "%";
+const sum = (a, f) => a.reduce((s, r) => s + f(r), 0);
+const dayLabel = s => new Date(s + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function rows(t) {
+  const { columns, data } = D[t];
+  return data.map(r => Object.fromEntries(columns.map((c, i) => [c, r[i]])));
+}
+
+// ---------- tooltip
+const tip = $("tip");
+function showTip(html, ev) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.pageX + pad, y = ev.pageY + pad;
+  if (x + w > window.scrollX + document.documentElement.clientWidth - 8) x = ev.pageX - w - pad;
+  if (y + h > window.scrollY + window.innerHeight - 8) y = ev.pageY - h - pad;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => { tip.style.opacity = 0; };
+
+// ---------- svg helpers
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function niceTicks(lo, hi, n = 4) {
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || mag * 10;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function frame(host, H) {
+  host.innerHTML = "";
+  const W = Math.max(200, host.clientWidth);
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" }, host);
+  return { svg, W, H };
+}
+function dataTable(host, head, body) {
+  const det = document.createElement("details");
+  det.innerHTML = `<summary>Show data</summary><div class="scroll"><table><thead><tr>${head.map((h, i) => `<th class="${i ? "n" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${
+    body.map(r => `<tr>${r.map((c, i) => `<td class="${i ? "n" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  host.appendChild(det);
+}
+
+// Line chart with crosshair tooltip. series: [{name, values, color, dash}]
+function lineChart(host, dates, series, { yFmt, yMin, yMax, label, aria }) {
+  const { svg, W, H } = frame(host, 230);
+  svg.setAttribute("aria-label", aria);
+  const m = { l: 44, r: 16, t: 10, b: 24 };
+  const all = series.flatMap(s => s.values);
+  const lo = yMin ?? Math.min(...all), hi = yMax ?? Math.max(...all);
+  const ticks = niceTicks(lo, hi);
+  const y0 = Math.min(lo, ticks[0]), y1 = Math.max(hi, ticks[ticks.length - 1]);
+  const x = i => m.l + (i / (dates.length - 1)) * (W - m.l - m.r);
+  const y = v => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  for (const t of ticks) {
+    el("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: css("--grid"), "stroke-width": 1 }, svg);
+    el("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = yFmt(t);
+  }
+  dates.forEach((d, i) => {
+    if (i % 7 === 6 || i === 0) el("text", { x: x(i), y: H - 6, "text-anchor": i === 0 ? "start" : "middle" }, svg).textContent = dayLabel(d);
+  });
+  for (const s of series) {
+    el("path", { d: s.values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(""),
+      fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round",
+      "stroke-dasharray": s.dash ? "6 4" : "none" }, svg);
+  }
+  if (label) {  // direct label on the last point of the first series
+    const s = series[0], i = s.values.length - 1;
+    el("circle", { cx: x(i), cy: y(s.values[i]), r: 4, fill: s.color, stroke: css("--card"), "stroke-width": 2 }, svg);
+    el("text", { x: x(i) - 6, y: y(s.values[i]) + 18, "text-anchor": "end", class: "lbl" }, svg).textContent = label(s.values[i]);
+  }
+  const cross = el("line", { y1: m.t, y2: H - m.b, stroke: css("--axis"), "stroke-width": 1, opacity: 0 }, svg);
+  const dots = series.map(s => el("circle", { r: 4, fill: s.color, stroke: css("--card"), "stroke-width": 2, opacity: 0 }, svg));
+  const hit = el("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent" }, svg);
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((px - m.l) / (W - m.l - m.r) * (dates.length - 1))));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("opacity", 1);
+    series.forEach((s, k) => { dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(s.values[i])); dots[k].setAttribute("opacity", 1); });
+    const wd = new Date(dates[i] + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short" });
+    showTip(`<b>${wd} ${dayLabel(dates[i])}</b><br>` + series.map(s =>
+      `<span class="sw" style="background:${s.color}"></span>${esc(s.name)}: <b>${s.tipFmt(s.values[i])}</b>`).join("<br>"), ev);
+  };
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); });
+  dataTable(host, ["Date", ...series.map(s => s.name)], dates.map((d, i) => [d, ...series.map(s => s.tipFmt(s.values[i]))]));
+}
+
+// Horizontal bars, sorted, direct labels. items: [{name, value, color, dim}]
+function hbar(host, items, { vFmt, aria }) {
+  const rowH = 34, { svg, W, H } = frame(host, items.length * rowH + 8);
+  svg.setAttribute("aria-label", aria);
+  const lw = Math.max(...items.map(d => d.name.length)) * 7 + 12, rw = 52;
+  const max = Math.max(...items.map(d => d.value));
+  items.forEach((d, i) => {
+    const yy = 4 + i * rowH, bw = Math.max(2, (d.value / max) * (W - lw - rw));
+    el("text", { x: lw - 8, y: yy + rowH / 2 + 4, "text-anchor": "end", class: d.dim ? "" : "lbl" }, svg).textContent = d.name;
+    // 4px rounded data end, square at the baseline
+    el("path", { d: `M${lw},${yy + 7}h${bw - 4}a4,4 0 0 1 4,4v${rowH - 22}a4,4 0 0 1 -4,4h${-(bw - 4)}z`,
+      fill: d.color, opacity: d.dim ? 0.35 : 1 }, svg);
+    el("text", { x: lw + bw + 6, y: yy + rowH / 2 + 4, class: "lbl" }, svg).textContent = vFmt(d.value);
+    const hit = el("rect", { x: 0, y: yy, width: W, height: rowH, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", ev => showTip(`<b>${esc(d.name)}</b><br>${vFmt(d.value)}${d.extra ? "<br>" + d.extra : ""}`, ev));
+    hit.addEventListener("pointerleave", hideTip);
+  });
+  dataTable(host, ["", "Value"], items.map(d => [d.name, vFmt(d.value)]));
+}
+
+// Stacked columns by date, 2px surface gap between segments.
+function stacked(host, dates, keys, matrix, { aria }) {
+  const { svg, W, H } = frame(host, 230);
+  svg.setAttribute("aria-label", aria);
+  const m = { l: 36, r: 8, t: 10, b: 24 };
+  const totals = matrix.map(r => keys.reduce((s, k) => s + r[k[0]], 0));
+  const ticks = niceTicks(0, Math.max(1, ...totals));
+  const top = ticks[ticks.length - 1];
+  const y = v => m.t + (1 - v / top) * (H - m.t - m.b);
+  const slot = (W - m.l - m.r) / dates.length, bw = Math.max(3, slot * 0.7);
+  for (const t of ticks) {
+    el("line", { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t ? css("--grid") : css("--axis"), "stroke-width": 1 }, svg);
+    el("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = fmt(t);
+  }
+  dates.forEach((d, i) => {
+    const x0 = m.l + i * slot + (slot - bw) / 2;
+    if (i % 7 === 6 || i === 0) el("text", { x: x0 + bw / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = dayLabel(d);
+    let acc = 0;
+    const segs = keys.filter(k => matrix[i][k[0]] > 0);
+    segs.forEach(([k, c], j) => {
+      const v = matrix[i][k], yTop = y(acc + v), yBot = y(acc), last = j === segs.length - 1;
+      const h = Math.max(0, yBot - yTop - (acc > 0 ? 2 : 0));
+      const r = last ? Math.min(4, h / 2, bw / 2) : 0;
+      el("path", { d: `M${x0},${yTop + h}v${-(h - r)}a${r},${r} 0 0 1 ${r},${-r}h${bw - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - r}z`, fill: css(c) }, svg);
+      acc += v;
+    });
+    const hit = el("rect", { x: m.l + i * slot, y: m.t, width: slot, height: H - m.t - m.b, fill: "transparent" }, svg);
+    hit.addEventListener("pointermove", ev => showTip(`<b>${dayLabel(d)}</b> · ${fmt(totals[i])} alerts<br>` +
+      keys.map(([k, c]) => `<span class="sw" style="background:${css(c)}"></span>${esc(k)}: <b>${fmt(matrix[i][k])}</b>`).join("<br>"), ev));
+    hit.addEventListener("pointerleave", hideTip);
+  });
+  dataTable(host, ["Date", ...keys.map(k => k[0])], dates.map((d, i) => [d, ...keys.map(k => fmt(matrix[i][k[0]]))]));
+}
+
+// ---------- render
+function render() {
+  const inS = r => store === "All" || r.store_id === store;
+  const scope = store === "All" ? "All 4 stores" : "Store " + store;
+  const inv = rows("fact_inventory").filter(inS), fc = rows("fact_forecast").filter(inS);
+  const dates = [...new Set(rows("fact_inventory").map(r => r.business_date))].sort();
+  const byDate = (arr, f) => dates.map(d => sum(arr.filter(r => r.business_date === d), f));
+
+  const sold = byDate(inv, r => r.units_sold), lost = byDate(inv, r => r.lost_units), so = byDate(inv, r => r.skus_stockout);
+  const fill = dates.map((_, i) => sold[i] / (sold[i] + lost[i]));
+  const win = (arr, a, b) => arr.slice(a, b).reduce((s, v) => s + v, 0);
+  const n = dates.length, L = [n - 7, n], P = [n - 14, n - 7];
+  const fillW = ([a, b]) => win(sold, a, b) / (win(sold, a, b) + win(lost, a, b));
+  const actual = byDate(fc, r => r.units), fcast = byDate(fc, r => r.forecast);
+  const wape = sum(fc, r => r.abs_err) / sum(fc, r => r.units);
+  const bias = (sum(fc, r => r.forecast) - sum(fc, r => r.units)) / sum(fc, r => r.units);
+  const bt = rows("backtest").find(r => r.model === "rf" && r.subset === "all_series").wape;
+
+  const delta = (v, goodWhenUp, text) => ({ cls: v === 0 ? "" : (v > 0) === goodWhenUp ? "good" : "bad", text: (v > 0 ? "▲ " : "▼ ") + text });
+  const fd = 100 * (fillW(L) - fillW(P)), ld = win(lost, ...L) / win(lost, ...P) - 1, sd = win(so, ...L) / win(so, ...P) - 1;
+  const kpis = [
+    ["Fill rate · last 7 days", pct(fillW(L)), delta(fd, true, Math.abs(fd).toFixed(1) + " pp vs prior 7 days")],
+    ["Lost units · last 7 days", fmt(win(lost, ...L)), delta(ld, false, Math.abs(100 * ld).toFixed(0) + "% vs prior 7 days")],
+    ["Stock-outs at close · last 7 days", fmt(win(so, ...L) / 7) + " / day", delta(sd, false, Math.abs(100 * sd).toFixed(0) + "% vs prior 7 days")],
+    ["Next-day forecast WAPE · live", wape.toFixed(3), delta(wape - bt, false, Math.abs(wape - bt).toFixed(3) + " vs 4-store backtest " + bt.toFixed(3))],
+    ["Forecast bias · live", (bias > 0 ? "+" : "") + pct(bias), { cls: "", text: Math.abs(bias) < 0.02 ? "Forecast on target" : bias < 0 ? "Forecast runs below actual" : "Forecast runs above actual" }],
+  ];
+  $("kpis").innerHTML = kpis.map(([t, v, d]) => `<div class="card kpi"><div class="t">${t}</div><div class="v">${v}</div><div class="d ${d.cls}">${d.text}</div></div>`).join("");
+
+  $("t-fill").textContent = "Daily fill rate · " + scope;
+  $("t-demand").textContent = "Actual vs next-day forecast, units · " + scope;
+  $("t-dept").textContent = "Forecast accuracy by department · " + scope;
+  const s1 = css("--s1"), s2 = css("--s2");
+  lineChart($("c-fill"), dates, [{ name: "Fill rate", values: fill, color: s1, tipFmt: v => pct(v, 2) }],
+    { yFmt: v => (100 * v).toFixed(1) + "%", yMax: 1, label: v => pct(v), aria: `Line chart of daily fill rate for ${scope}.` });
+  lineChart($("c-demand"), dates, [
+    { name: "Actual", values: actual, color: s1, tipFmt: v => fmt(v) },
+    { name: "Forecast", values: fcast, color: s2, dash: true, tipFmt: v => fmt(v) }],
+    { yFmt: v => fmt(v / 1000) + "K", aria: `Line chart of actual units per day against the next-day forecast for ${scope}.` });
+
+  const allInv = rows("fact_inventory");
+  hbar($("c-lost"), STORES.slice(1).map(s => ({ name: s, value: sum(allInv.filter(r => r.store_id === s), r => r.lost_units),
+    color: s1, dim: store !== "All" && s !== store })).sort((a, b) => b.value - a.value),
+    { vFmt: v => fmt(v), aria: "Bar chart of units lost to stock-outs by store." });
+
+  // Department table
+  const depts = [...new Set(fc.map(r => r.dept_id))].map(d => {
+    const r = fc.filter(x => x.dept_id === d);
+    const u = sum(r, x => x.units), f = sum(r, x => x.forecast);
+    return { d, u, f, w: sum(r, x => x.abs_err) / u, b: (f - u) / u, s: sum(r, x => x.stockout_skus) };
+  }).sort((a, b) => b.w - a.w);
+  const sgn = v => (v > 0 ? "+" : "") + pct(v);
+  $("dept").innerHTML = `<table><thead><tr><th>Department</th><th class="n">Units sold</th><th class="n">Forecast</th><th class="n">WAPE</th><th class="n">Bias</th><th class="n">Stock-capped SKU-days</th></tr></thead><tbody>${
+    depts.map(r => `<tr><td>${esc(r.d)}</td><td class="n">${fmt(r.u)}</td><td class="n">${fmt(r.f)}</td><td class="n">${r.w.toFixed(3)}</td><td class="n">${sgn(r.b)}</td><td class="n">${fmt(r.s)}</td></tr>`).join("")
+  }</tbody><tfoot><tr><td>Total</td><td class="n">${fmt(sum(fc, r => r.units))}</td><td class="n">${fmt(sum(fc, r => r.forecast))}</td><td class="n">${wape.toFixed(3)}</td><td class="n">${sgn(bias)}</td><td class="n">${fmt(sum(fc, r => r.stockout_skus))}</td></tr></tfoot></table>`;
+
+  $("retrain").innerHTML = `<table><thead><tr><th>Retrain date</th><th class="n">Challenger WAPE</th><th class="n">Champion WAPE</th><th>Outcome</th><th class="n">Seconds</th></tr></thead><tbody>${
+    rows("model_events").map(r => `<tr><td>${esc(r.business_date)}</td><td class="n">${r.challenger_wape.toFixed(3)}</td><td class="n">${r.champion_wape.toFixed(3)}</td><td>${r.promoted ? "Promoted" : "Kept champion"}</td><td class="n">${fmt(r.seconds)}</td></tr>`).join("")
+  }</tbody></table>`;
+
+  // Alerts
+  const al = rows("alerts").filter(inS);
+  $("n-alerts").textContent = `${fmt(al.length)} alerts · ${scope}`;
+  hbar($("c-atype"), ALERT_TYPES.map(([k, c]) => ({ name: k, value: al.filter(r => r.alert === k).length, color: css(c) }))
+    .sort((a, b) => b.value - a.value), { vFmt: v => fmt(v), aria: "Bar chart of alert counts by type." });
+  $("lg-aday").innerHTML = ALERT_TYPES.map(([k, c]) => `<span><i class="sq" style="background:var(${c})"></i>${k}</span>`).join("");
+  const matrix = dates.map(d => Object.fromEntries(ALERT_TYPES.map(([k]) => [k, al.filter(r => r.business_date === d && r.alert === k).length])));
+  stacked($("c-aday"), dates, ALERT_TYPES, matrix, { aria: `Stacked column chart of alerts per day by type for ${scope}.` });
+
+  const log = al.slice().sort((a, b) => b.business_date.localeCompare(a.business_date) || a.store_id.localeCompare(b.store_id));
+  $("log").innerHTML = `<table><thead><tr><th>Date</th><th>Store</th><th>Department</th><th>Item</th><th>Alert</th><th>Severity</th><th>Detail</th></tr></thead><tbody>${
+    log.slice(0, logLimit).map(r => `<tr><td>${esc(r.business_date)}</td><td>${esc(r.store_id)}</td><td>${esc(r.dept_id)}</td><td>${esc(r.item_id || "")}</td><td>${esc(r.alert)}</td><td>${esc(r.severity)}</td><td>${esc(r.detail)}</td></tr>`).join("")
+  }</tbody></table>`;
+  $("more").hidden = log.length <= logLimit;
+}
+
+function pills() {
+  $("stores").innerHTML = STORES.map(s => `<button type="button" aria-pressed="${s === store}" data-s="${s}">${s === "All" ? "All stores" : s}</button>`).join("");
+}
+$("stores").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  store = b.dataset.s; logLimit = 200;
+  try { localStorage.setItem("rdr-store", store); } catch (_) {}
+  pills(); if (D) render();
+});
+$("more").addEventListener("click", () => { logLimit += 200; if (D) render(); });
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => D && render(), 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => D && render());
+
+try { const s = localStorage.getItem("rdr-store"); if (STORES.includes(s)) store = s; } catch (_) {}
+pills();
+fetch("data.json").then(r => r.json()).then(j => {
+  D = j;
+  render();
+  $("foot").insertAdjacentHTML("beforeend", ` · ${fmt(j.pipeline.batches)} micro-batches, median ${j.pipeline.median_seconds.toFixed(1)} s, 95th-percentile event age ${fmt(j.pipeline.p95_event_age_s)} s`);
+}).catch(err => { $("kpis").innerHTML = `<p class="err">Could not load data.json (${esc(err.message)}). Serve this folder over HTTP rather than opening the file directly.</p>`; });
+</script>
+</body>
+</html>

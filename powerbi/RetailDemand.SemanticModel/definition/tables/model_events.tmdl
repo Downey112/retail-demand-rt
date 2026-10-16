@@ -1,0 +1,73 @@
+table model_events
+	lineageTag: 2173cc55-3025-5e31-a7fe-68ec18f9d157
+
+	column business_date
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		lineageTag: be0b04c3-77a6-538c-b9f8-71addc79fe86
+		summarizeBy: none
+		sourceColumn: business_date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column challenger
+		dataType: string
+		lineageTag: 1248767b-700f-5b86-895e-f79c839037fe
+		summarizeBy: none
+		sourceColumn: challenger
+
+	column champion
+		dataType: string
+		lineageTag: ad9c269a-42f5-54a3-9f42-09135e94a193
+		summarizeBy: none
+		sourceColumn: champion
+
+	column challenger_wape
+		dataType: double
+		formatString: 0.000
+		lineageTag: 7afaa03f-580c-59a6-908a-6dc3e9b51211
+		summarizeBy: none
+		sourceColumn: challenger_wape
+
+	column champion_wape
+		dataType: double
+		formatString: 0.000
+		lineageTag: 974cddb9-dd27-55c1-ac56-e8ba8f815e78
+		summarizeBy: none
+		sourceColumn: champion_wape
+
+	column promoted
+		dataType: boolean
+		lineageTag: 28d389ee-ba9f-5fa0-ba16-01e66aec2c14
+		summarizeBy: none
+		sourceColumn: promoted
+
+	column seconds
+		dataType: int64
+		formatString: #,0
+		lineageTag: c4ed7c51-051c-5f64-8537-c1cd22e07486
+		summarizeBy: none
+		sourceColumn: seconds
+
+	column outcome = IF ( model_events[promoted], "Promoted", "Kept champion" )
+		dataType: string
+		lineageTag: 63dc4a94-f069-5a0a-9764-02931bb64c57
+		summarizeBy: none
+
+	partition model_events = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\model_events.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"business_date", type date},
+				        {"challenger", type text},
+				        {"champion", type text},
+				        {"challenger_wape", type number},
+				        {"champion_wape", type number},
+				        {"promoted", type logical},
+				        {"seconds", Int64.Type}
+				    }, "en-US")
+				in
+				    Typed

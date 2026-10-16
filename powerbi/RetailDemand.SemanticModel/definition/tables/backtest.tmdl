@@ -1,0 +1,67 @@
+table backtest
+	lineageTag: 0e198a37-a587-5a44-97c4-a94cabdb2c43
+
+	column model
+		dataType: string
+		lineageTag: 229cfb97-e28e-5ba2-9639-acf680a63f92
+		summarizeBy: none
+		sourceColumn: model
+
+	column wape
+		dataType: double
+		formatString: 0.000
+		lineageTag: 11fbcc95-fa68-57fb-97a8-e7e15e72c1b4
+		summarizeBy: none
+		sourceColumn: wape
+
+	column rmse
+		dataType: double
+		formatString: 0.000
+		lineageTag: ced2beb9-0c8c-5553-87dc-78512f5711ad
+		summarizeBy: none
+		sourceColumn: rmse
+
+	column rmsse
+		dataType: double
+		formatString: 0.000
+		lineageTag: da9c1c37-0bb6-5827-b674-9934cda84d01
+		summarizeBy: none
+		sourceColumn: rmsse
+
+	column bias
+		dataType: double
+		formatString: 0.000
+		lineageTag: 823f2d5e-7cfe-5903-b5fc-7aabc67a0d3f
+		summarizeBy: none
+		sourceColumn: bias
+
+	column n
+		dataType: int64
+		formatString: #,0
+		lineageTag: a3229d85-da93-5e23-991f-fecb4ab17e31
+		summarizeBy: none
+		sourceColumn: n
+
+	column subset
+		dataType: string
+		lineageTag: 5c8bf87b-72f3-529e-aae0-365b09a5478b
+		summarizeBy: none
+		sourceColumn: subset
+
+	partition backtest = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\backtest.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"model", type text},
+				        {"wape", type number},
+				        {"rmse", type number},
+				        {"rmsse", type number},
+				        {"bias", type number},
+				        {"n", Int64.Type},
+				        {"subset", type text}
+				    }, "en-US")
+				in
+				    Typed

@@ -9,7 +9,7 @@ History up to 2016-05-22 sits in an "operational" retail database and is batch-i
 * when a day closes: forecast accuracy, inventory health, a refreshed 7-day forecast and a new replenishment policy (safety stock, reorder point, EOQ), which the simulated stores order against the next day,
 * every 7 days, a challenger model retrained in the background and promoted only if it beats the champion on the latest week.
 
-A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. Power BI can read the same files ([docs/power_bi.md](docs/power_bi.md)).
+A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. The finished replay is also published as a **Power BI report** ([powerbi/RetailDemand.pbip](powerbi/RetailDemand.pbip)) and as a **web dashboard** with the same layout: **<https://downey112.github.io/retail-demand-rt/dashboard/>**. See [docs/power_bi.md](docs/power_bi.md) for the design and the semantic model.
 
 ## Architecture
 
@@ -114,6 +114,7 @@ python scripts/store_simulator.py --seconds-per-day 90 --wait-for-plan   # termi
 streamlit run app.py                                    # terminal 4: dashboard
 
 python scripts/report.py                 # after the replay: docs/results.md + figure
+python scripts/export_bi.py              # then: CSVs for Power BI + data for the web dashboard
 python -m pytest                         # unit tests + Spark leakage test
 ```
 

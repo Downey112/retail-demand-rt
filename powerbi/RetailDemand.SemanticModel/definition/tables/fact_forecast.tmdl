@@ -1,0 +1,162 @@
+table fact_forecast
+	lineageTag: 43429f26-b5b8-5e49-971f-ca410ca68c38
+
+	measure 'Actual Units' = SUM ( fact_forecast[units] )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: 4b5afcb2-107c-5d4f-8a19-5de2e818ae26
+
+	measure 'Forecast Units' = SUM ( fact_forecast[forecast] )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: 98279880-ffb4-5958-b149-17a41d52eb75
+
+	measure 'Abs Error' = SUM ( fact_forecast[abs_err] )
+		formatString: #,0
+		isHidden
+		displayFolder: Base
+		lineageTag: 309d2f0e-eea6-5c1f-8d7c-b1f180b08ba3
+
+	measure WAPE =
+			-- SKU-level absolute error summed before aggregating, so it is a true SKU WAPE
+			DIVIDE ( [Abs Error], [Actual Units] )
+		formatString: 0.000
+		displayFolder: Base
+		lineageTag: b1047421-9722-5d45-ba43-6ace0fab28b8
+
+	measure 'Bias %' = DIVIDE ( [Forecast Units] - [Actual Units], [Actual Units] )
+		formatString: +0.0%;-0.0%;0.0%
+		displayFolder: Base
+		lineageTag: 7a5bc59c-0c1e-50ef-b219-7e352f134cba
+
+	measure 'Stock-out SKU-days' = SUM ( fact_forecast[stockout_skus] )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: 125c5eef-963f-5ef4-bd08-048e6f573f81
+
+	measure 'Backtest WAPE' =
+			CALCULATE (
+			    MAX ( backtest[wape] ),
+			    backtest[model] = "rf",
+			    backtest[subset] = "all_series"
+			)
+		formatString: 0.000
+		displayFolder: Comparison
+		lineageTag: a28aa28a-9e95-5bb9-ad59-4316b69d7866
+
+	measure 'WAPE Var' = [WAPE] - [Backtest WAPE]
+		formatString: +0.000;-0.000;0.000
+		displayFolder: Variance
+		lineageTag: 09ab7bab-c335-5cec-8a48-de3de95a8bef
+
+	measure 'Label WAPE' =
+			VAR _v = [WAPE Var]
+			RETURN
+			    IF ( _v > 0, "▲ ", "▼ " ) & FORMAT ( ABS ( _v ), "0.000" ) & " vs 4-store backtest " & FORMAT ( [Backtest WAPE], "0.000" )
+		displayFolder: Labels
+		lineageTag: c0a8c913-20e1-5887-bbb7-fc26734e016f
+
+	measure 'Color WAPE' = IF ( [WAPE Var] <= 0, "#16A34A", "#DC2626" )
+		displayFolder: Colors
+		lineageTag: fb6b6b32-d7ba-57ec-99bf-edc8d413b763
+
+	measure 'Label Bias' =
+			VAR _b = [Bias %]
+			RETURN
+			    SWITCH ( TRUE (),
+			        ABS ( _b ) < 0.02, "Forecast on target",
+			        _b < 0, "Forecast runs below actual",
+			        "Forecast runs above actual" )
+		displayFolder: Labels
+		lineageTag: 44a35849-3f8e-52a6-bdd2-3c8fd905db05
+
+	measure 'Title Demand' = "Actual vs next-day forecast, units · " & [Scope Label]
+		displayFolder: Titles
+		lineageTag: 140b1a20-1be7-50ee-99cd-e8d88b7aa50c
+
+	measure 'Title Dept' = "Forecast accuracy by department · " & [Scope Label]
+		displayFolder: Titles
+		lineageTag: 8c158ba6-ebdd-508a-a75e-79db68cb6ac7
+
+	column business_date
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		lineageTag: baf9cd0e-5ee4-5b97-8c68-463fd7982439
+		summarizeBy: none
+		sourceColumn: business_date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column store_id
+		dataType: string
+		isHidden
+		lineageTag: e439e7b4-eebd-52de-8bf4-a31b9dfb8e39
+		summarizeBy: none
+		sourceColumn: store_id
+
+	column dept_id
+		dataType: string
+		isHidden
+		lineageTag: 55311248-7aa4-571d-be1d-a597b6cfbb29
+		summarizeBy: none
+		sourceColumn: dept_id
+
+	column units
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 6df61ea1-aad6-585a-8882-49f4db9d1d5d
+		summarizeBy: none
+		sourceColumn: units
+
+	column forecast
+		dataType: double
+		isHidden
+		formatString: #,0
+		lineageTag: 5a1e86f7-b860-504b-b626-a4c2801d7d0d
+		summarizeBy: none
+		sourceColumn: forecast
+
+	column abs_err
+		dataType: double
+		isHidden
+		formatString: #,0
+		lineageTag: d3c070b0-19e6-5d97-b3db-4dcf3c2f085a
+		summarizeBy: none
+		sourceColumn: abs_err
+
+	column sku_days
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 501246b1-11ad-504a-a748-fbc5658a60eb
+		summarizeBy: none
+		sourceColumn: sku_days
+
+	column stockout_skus
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 0fc130d1-453b-594d-a258-b9a707e48223
+		summarizeBy: none
+		sourceColumn: stockout_skus
+
+	partition fact_forecast = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\fact_forecast.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"business_date", type date},
+				        {"store_id", type text},
+				        {"dept_id", type text},
+				        {"units", Int64.Type},
+				        {"forecast", type number},
+				        {"abs_err", type number},
+				        {"sku_days", Int64.Type},
+				        {"stockout_skus", Int64.Type}
+				    }, "en-US")
+				in
+				    Typed
