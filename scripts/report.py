@@ -61,6 +61,10 @@ def main():
     fig.savefig(OUT / "replay_summary.png", dpi=150)
 
     total_sold, total_lost = inv.units_sold.sum(), inv.lost_units.sum()
+    fill = lambda d: d.units_sold.sum() / (d.units_sold.sum() + d.lost_units.sum())
+    day_no = (pd.to_datetime(inv.business_date) - pd.to_datetime(inv.business_date).min()).dt.days
+    weekly = inv.groupby(day_no // 7 + 1).apply(fill)
+    weekend = pd.to_datetime(inv.business_date).dt.dayofweek >= 5
     h1 = sku.copy()
     live_wape = (h1.units - h1.yhat).abs().sum() / h1.units.sum()
     live_bias = h1.yhat.sum() / h1.units.sum() - 1
@@ -79,6 +83,9 @@ def main():
         f"* Next-day forecast, SKU level: WAPE **{live_wape:.3f}**, bias **{live_bias:+.1%}** "
         f"over {len(h1):,} SKU-store-days.",
         f"* Units sold {total_sold:,.0f}, lost to stock-outs {total_lost:,.0f}: fill rate **{total_sold / (total_sold + total_lost):.2%}**.",
+        f"* Fill rate by replay week: {', '.join(f'week {w} {v:.1%}' for w, v in weekly.items())}; "
+        f"weekdays {fill(inv[~weekend]):.1%}, weekends {fill(inv[weekend]):.1%}. Week 1 runs on the simulated "
+        f"opening stock; later weeks show the policy on its own.",
         f"* SKU-stores out of stock at close: mean {inv.groupby('business_date').stockout.sum().mean():.0f} per day "
         f"(of {serving.read('inventory_policy').shape[0]:,}).",
         f"* Alerts raised: " + ", ".join(f"{k} {v:,}" for k, v in alerts.alert.value_counts().items()) + ".",

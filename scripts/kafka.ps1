@@ -3,7 +3,7 @@
 #   powershell -File scripts/kafka.ps1 -Format  wipe and format the log directory first
 param([switch]$Format)
 $env:JAVA_HOME = "C:\Users\courts\tools\jdk17"
-$env:KAFKA_HEAP_OPTS = "-Xmx512M -Xms256M"
+$env:KAFKA_HEAP_OPTS = "-Xmx384M -Xms128M"
 $kafka = "C:\Users\courts\tools\kafka"
 Set-Location $kafka
 if ($Format) {

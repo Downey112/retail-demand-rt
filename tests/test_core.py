@@ -73,3 +73,43 @@ def test_eoq_formula():
 def test_health_status():
     cover, status = inventory.health([0, 2, 500, 20], [3, 3, 3, 3], [1, 1, 1, 1])
     assert list(status) == ["stockout", "below_rop", "overstock", "healthy"]
+
+
+def test_reset_restores_latest_batch_champion(tmp_path, monkeypatch):
+    import json
+    from rdf import models
+    monkeypatch.setattr(models, "REGISTRY", tmp_path / "registry.json")
+    for d in ["rf-stream", "rf-legacy-stream"]:
+        (tmp_path / d).mkdir()
+    v = lambda name, created, **kw: {"version": name, "path": str(tmp_path / name), "trained_through": "2016-05-22",
+                                     "metrics": {"wape": 0.7}, "created": created, **kw}
+    versions = [
+        v("rf-old", 1),                                                  # legacy batch entry: no source/promoted
+        v("rf-champ", 2, source="batch", promoted=True),
+        v("gbt-unpromoted", 3, source="batch", promoted=False),          # newer, but never champion
+        # stream challengers can be trained through HISTORY_END too; only source (or legacy metrics) marks them
+        v("rf-stream", 4, source="stream", promoted=True),
+        {**v("rf-legacy-stream", 5), "metrics": {"wape_last7": 0.74}},
+    ]
+    models.REGISTRY.write_text(json.dumps({"champion": "rf-stream", "versions": versions}))
+    assert models.reset_to_batch_champion() == "rf-champ"
+    reg = models.load_registry()
+    assert reg["champion"] == "rf-champ"
+    assert [x["version"] for x in reg["versions"]] == ["rf-old", "rf-champ", "gbt-unpromoted"]
+    assert not (tmp_path / "rf-stream").exists() and not (tmp_path / "rf-legacy-stream").exists()
+
+
+def test_reset_without_batch_model_fails_clearly(tmp_path, monkeypatch):
+    from rdf import models
+    monkeypatch.setattr(models, "REGISTRY", tmp_path / "registry.json")
+    with pytest.raises(SystemExit, match="train.py"):
+        models.reset_to_batch_champion()
+
+
+def test_replay_ready_is_claimed_once(tmp_path, monkeypatch):
+    from rdf import streaming
+    monkeypatch.setattr(streaming, "READY_FILE", tmp_path / "_state" / "replay_ready.json")
+    assert not streaming.claim_ready()
+    streaming.mark_ready({"pos-transactions": {"0": 5}})
+    assert streaming.claim_ready()
+    assert not streaming.claim_ready()

@@ -57,3 +57,26 @@ def test_no_feature_uses_data_after_its_origin(spark):
     pd.testing.assert_frame_equal(a.loc[safe, FEATURES], b.loc[safe, FEATURES])
     # the perturbation does reach rows whose origin is on or after p
     assert not np.allclose(a.loc[~safe, "o_rm_7"].to_numpy()[-20:], b.loc[~safe, "o_rm_7"].to_numpy()[-20:])
+
+
+def test_write_partitioned_replaces_only_its_partition(spark, tmp_path):
+    """Re-running a day after a crash must replace that day, keep the others, and never wipe a legacy table."""
+    from rdf.spark import write_partitioned
+    spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS wp_test LOCATION '{(tmp_path / 'wp').as_uri()}'")
+    t = "wp_test.sales"
+    day = lambda d, units: spark.createDataFrame(pd.DataFrame({"sale_date": [d] * 2, "item_id": ["a", "b"], "units": units}))
+    try:
+        write_partitioned(spark, day("2016-06-18", [1, 2]), t, "sale_date")      # first write creates the table
+        write_partitioned(spark, day("2016-06-19", [3, 4]), t, "sale_date")
+        write_partitioned(spark, day("2016-06-19", [5, 6]), t, "sale_date")      # re-run of the same day
+        got = spark.table(t).toPandas().sort_values(["sale_date", "item_id"])
+        assert got.groupby("sale_date").units.sum().to_dict() == {"2016-06-18": 3, "2016-06-19": 11}
+        assert len(got) == 4
+
+        day("2016-06-18", [1, 2]).write.saveAsTable("wp_test.legacy")             # unpartitioned
+        with pytest.raises(RuntimeError, match="--reset"):
+            write_partitioned(spark, day("2016-06-19", [3, 4]), "wp_test.legacy", "sale_date")
+        assert spark.table("wp_test.legacy").count() == 2
+    finally:
+        spark.sql("DROP DATABASE IF EXISTS wp_test CASCADE")

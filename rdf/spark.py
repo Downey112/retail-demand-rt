@@ -15,15 +15,18 @@ def _set_env():
             os.environ["PATH"] = f"{p};{os.environ['PATH']}"
 
 
-def get_spark(app: str, memory: str = "3g", cores: int = 6, shuffle_partitions: int = 16):
+def get_spark(app: str, memory: str = "3g", cores: int = 6, shuffle_partitions: int = 16, extra: dict | None = None):
     _set_env()
     from pyspark.sql import SparkSession
 
     for p in (C.WAREHOUSE, C.METASTORE, C.CHECKPOINTS):
         p.mkdir(parents=True, exist_ok=True)
     metastore = C.METASTORE.as_posix()
+    builder = SparkSession.builder
+    for k, v in (extra or {}).items():    # static configs (e.g. spark.scheduler.mode) must be set here
+        builder = builder.config(k, v)
     spark = (
-        SparkSession.builder.master(f"local[{cores}]")
+        builder.master(f"local[{cores}]")
         .appName(app)
         .config("spark.driver.memory", memory)
         .config("spark.sql.shuffle.partitions", shuffle_partitions)
@@ -42,3 +45,16 @@ def get_spark(app: str, memory: str = "3g", cores: int = 6, shuffle_partitions: 
     spark.sparkContext.setLogLevel("ERROR")
     spark.sql(f"CREATE DATABASE IF NOT EXISTS {C.HIVE_DB}")
     return spark
+
+
+def write_partitioned(spark, df, table: str, partition_col: str):
+    """Write whole partitions, replacing any already there, so re-running a day after a crash never duplicates it."""
+    if spark.catalog.tableExists(table):
+        parts = [c.name for c in spark.catalog.listColumns(table) if c.isPartition]
+        if parts != [partition_col]:
+            # overwrite=True on an unpartitioned table would replace the whole table, not one day
+            raise RuntimeError(f"{table} is partitioned by {parts or 'nothing'}, expected {partition_col}; "
+                               "start a new replay with stream_processor.py --reset")
+        df.select(*spark.table(table).columns).write.insertInto(table, overwrite=True)   # dynamic partition overwrite
+    else:
+        df.write.partitionBy(partition_col).saveAsTable(table)

@@ -107,7 +107,7 @@ def body():
                             line=dict(color=ACTUAL, width=2), marker=dict(size=8))
             fig.add_scatter(x=g.business_date, y=g.forecast, name="Next-day forecast", mode="lines+markers",
                             line=dict(color=FORECAST, width=2, dash="dash"), marker=dict(size=8, symbol="diamond"))
-            st.plotly_chart(layout(fig, "Daily demand vs forecast", ytitle="units"), use_container_width=True)
+            st.plotly_chart(layout(fig, "Daily demand vs forecast", ytitle="units"), width="stretch")
         else:
             st.info("Demand vs forecast appears after the first day closes.")
     with right:
@@ -119,7 +119,7 @@ def body():
                 x = h[h.channel == ch]
                 fig.add_bar(x=x.hour, y=x.units, name=name, marker=dict(color=col, line=dict(color="#fcfcfb", width=2)))
             fig.update_layout(barmode="stack")
-            st.plotly_chart(layout(fig, f"Today by hour ({hr.business_date.iat[0]})", ytitle="units"), use_container_width=True)
+            st.plotly_chart(layout(fig, f"Today by hour ({hr.business_date.iat[0]})", ytitle="units"), width="stretch")
 
     # ---- charts row 2
     left, right = st.columns(2)
@@ -130,7 +130,7 @@ def body():
             for s in ["stockout", "below_rop", "overstock"]:
                 fig.add_scatter(x=g.business_date, y=g[s], name=STATUS_LABEL[s], mode="lines+markers",
                                 line=dict(color=STATUS[s], width=2), marker=dict(size=8))
-            st.plotly_chart(layout(fig, "Inventory health at close (SKU-store count)", ytitle="SKU-stores"), use_container_width=True)
+            st.plotly_chart(layout(fig, "Inventory health at close (SKU-store count)", ytitle="SKU-stores"), width="stretch")
     with right:
         if not acc.empty:
             g = (acc.assign(err=acc.wape * acc.actual).groupby("horizon", as_index=False)[["err", "actual"]].sum())
@@ -140,7 +140,7 @@ def body():
                                    hovertemplate="%{x} days ahead: WAPE %{y:.1%}<extra></extra>"))
             fig.update_xaxes(title="days between forecast and sale", dtick=1)
             fig.update_yaxes(tickformat=".0%")
-            st.plotly_chart(layout(fig, "Forecast error by lead time (live days)", ytitle="WAPE"), use_container_width=True)
+            st.plotly_chart(layout(fig, "Forecast error by lead time (live days)", ytitle="WAPE"), width="stretch")
 
     # ---- alerts and attention list
     left, right = st.columns([3, 2])
@@ -155,7 +155,7 @@ def body():
             view = al[al.alert.isin(kinds)].head(300).assign(
                 severity=lambda x: x.severity.map(lambda s: f"{SEVERITY_ICON.get(s, '')} {s}"))
             st.dataframe(view[["business_date", "severity", "alert", "store_id", "dept_id", "item_id", "detail"]],
-                         hide_index=True, use_container_width=True, height=300)
+                         hide_index=True, width="stretch", height=300)
             hook = os.environ.get("ALERT_WEBHOOK_URL")
             if hook and st.button("Send critical alerts to webhook"):
                 crit = view[view.severity.str.contains("critical")].head(50)
@@ -172,7 +172,7 @@ def body():
             att = att.assign(status=att.status.map(STATUS_LABEL))
             st.dataframe(att[["store_id", "item_id", "status", "on_hand", "on_order", "reorder_point", "mu_daily", "days_of_cover"]]
                          .rename(columns={"mu_daily": "forecast/day"}).round(1),
-                         hide_index=True, use_container_width=True, height=300)
+                         hide_index=True, width="stretch", height=300)
 
     # ---- model section
     with st.expander("Models: backtest and retraining"):
@@ -180,10 +180,10 @@ def body():
         if not mm.empty:
             st.markdown("Backtest on the last 4 weeks of history (weekly origins, 1-7 days ahead). "
                         "ARIMA is compared on a random sample of series, so every model is also scored on that sample.")
-            st.dataframe(mm.round(3), hide_index=True, use_container_width=True)
+            st.dataframe(mm.round(3), hide_index=True, width="stretch")
         if not me.empty:
             st.markdown("Champion / challenger retraining during the stream")
-            st.dataframe(me.round(3), hide_index=True, use_container_width=True)
+            st.dataframe(me.round(3), hide_index=True, width="stretch")
 
 
 body()

@@ -19,20 +19,10 @@ import uuid
 import numpy as np
 import pandas as pd
 from confluent_kafka import Producer
-from confluent_kafka.admin import AdminClient, NewTopic
 
 from rdf import config as C
-from rdf import serving
+from rdf import serving, streaming
 from rdf.simulate import CLOSE_HOUR, OPEN_HOUR, Ledger, line_times, split_into_lines
-
-
-def ensure_topics():
-    admin = AdminClient({"bootstrap.servers": C.KAFKA_BOOTSTRAP})
-    existing = set(admin.list_topics(timeout=10).topics)
-    wanted = {C.TOPIC_POS: 4, C.TOPIC_INVENTORY: 4, C.TOPIC_STORE_EVENTS: 1}
-    new = [NewTopic(t, num_partitions=n, replication_factor=1) for t, n in wanted.items() if t not in existing]
-    for f in admin.create_topics(new).values() if new else []:
-        f.result()
 
 
 def load_demand(stores):
@@ -58,7 +48,6 @@ def main():
 
     stores = C.SCOPE_STORES
     rng = np.random.default_rng(C.SEED)
-    ensure_topics()
     producer = Producer({"bootstrap.servers": C.KAFKA_BOOTSTRAP, "linger.ms": 50,
                          "acks": "all", "enable.idempotence": True, "compression.type": "lz4"})
 
@@ -74,9 +63,13 @@ def main():
 
     demand = load_demand(stores)
     days = sorted(demand["date"].unique())[: args.days]
+    if not streaming.claim_ready():
+        print("waiting for stream_processor.py --reset to prepare a new replay", flush=True)
+        while not streaming.claim_ready():
+            time.sleep(2)
     policy = serving.read("inventory_policy")
-    if policy.empty:
-        raise SystemExit("No inventory policy in the serving layer. Run scripts/train.py first.")
+    if policy.empty or str(policy["origin"].astype(str).max()) != C.HISTORY_END:
+        raise SystemExit(f"Expected the plan made at {C.HISTORY_END}. Run scripts/train.py first.")
     pol = policy.set_index(["item_id", "store_id"])
     ledgers = {}
     for (item, store), r in pol.iterrows():

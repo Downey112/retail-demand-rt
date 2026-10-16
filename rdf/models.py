@@ -119,13 +119,15 @@ def load_registry() -> dict:
     return {"champion": None, "versions": []}
 
 
-def register(model: PipelineModel, kind: str, metrics: dict, trained_through: str, promote: bool) -> str:
+def register(model: PipelineModel, kind: str, metrics: dict, trained_through: str, promote: bool,
+             source: str = "batch") -> str:
     reg = load_registry()
     version = f"{kind}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}"
     path = C.MODELS / version
     model.write().overwrite().save(path.as_uri())
     reg["versions"].append({"version": version, "kind": kind, "path": str(path), "metrics": metrics,
-                            "trained_through": trained_through, "created": time.time()})
+                            "trained_through": trained_through, "source": source,
+                            "promoted": bool(promote or reg["champion"] is None), "created": time.time()})
     if promote or reg["champion"] is None:
         reg["champion"] = version
     C.MODELS.mkdir(parents=True, exist_ok=True)
@@ -133,6 +135,30 @@ def register(model: PipelineModel, kind: str, metrics: dict, trained_through: st
     tmp.write_text(json.dumps(reg, indent=2))
     tmp.replace(REGISTRY)
     return version
+
+
+def reset_to_batch_champion() -> str:
+    """Forget models trained during a replay: the latest batch champion becomes champion again.
+
+    Called before a fresh replay or a re-plan at the end of history, so a plan for HISTORY_END never uses a
+    model that has seen the streamed days.
+    """
+    import shutil
+    reg = load_registry()
+    # Entries written before `source` existed: stream challengers are the ones scored on the last 7 days.
+    is_batch = lambda v: v.get("source", "stream" if "wape_last7" in v["metrics"] else "batch") == "batch"
+    batch = [v for v in reg["versions"] if is_batch(v)]
+    champions = [v for v in batch if v.get("promoted", True)]
+    if not champions:
+        raise SystemExit("No batch-trained champion in the model registry. Run scripts/train.py first.")
+    for v in reg["versions"]:
+        if v not in batch:
+            shutil.rmtree(v["path"], ignore_errors=True)
+    reg = {"champion": max(champions, key=lambda v: v["created"])["version"], "versions": batch}
+    tmp = REGISTRY.with_suffix(".tmp")
+    tmp.write_text(json.dumps(reg, indent=2))
+    tmp.replace(REGISTRY)
+    return reg["champion"]
 
 
 def load_champion() -> tuple[str, PipelineModel]:

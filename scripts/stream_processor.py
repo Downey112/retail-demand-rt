@@ -24,12 +24,12 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, LongType, StringType, StructField, StructType
 
 from rdf import config as C
-from rdf import inventory, serving
+from rdf import inventory, serving, streaming
 from rdf.features import build_features, sales_source
 from rdf.metrics import wape
 from rdf.models import fit, load_champion, load_registry, predict, register
-from rdf.planning import forecast_at, policy_from_forecast, publish_plan
-from rdf.spark import get_spark
+from rdf.planning import forecast_at, policy_from_forecast, publish_plan, replan_at_history_end
+from rdf.spark import get_spark, write_partitioned
 
 S = lambda: StringType()
 D = lambda: DoubleType()
@@ -54,8 +54,9 @@ STATE_FILE = C.LAKE / "_state" / "processor_state.json"
 
 
 class Processor:
-    def __init__(self, spark):
+    def __init__(self, spark, retrain_sample: float = 0.15):
         self.spark = spark
+        self.retrain_sample = retrain_sample
         self.state = {"closes": {}, "closed_days": [], "last_retrain": C.HISTORY_END, "alerted": []}
         if STATE_FILE.exists():
             self.state.update(json.loads(STATE_FILE.read_text()))
@@ -72,7 +73,7 @@ class Processor:
         tmp.replace(STATE_FILE)
 
     def bronze(self, topic, day=None) -> DataFrame | None:
-        if not BRONZE[topic].exists():
+        if not any(BRONZE[topic].rglob("*.parquet")):     # a batch with no events of this topic writes no files
             return None
         df = self.spark.read.parquet(BRONZE[topic].as_uri())
         return df.where(F.col("business_date") == day) if day else df
@@ -137,7 +138,7 @@ class Processor:
 
     def day_reconciled(self, day) -> bool:
         closes = {s: self.state["closes"].get(f"{s}|{day}") for s in C.SCOPE_STORES}
-        if any(v is None for v in closes.values()):
+        if any(v is None for v in closes.values()) or self.bronze(C.TOPIC_INVENTORY) is None:
             return False
         got = (self.bronze(C.TOPIC_POS, day).dropDuplicates(["txn_id"])
                .groupBy("store_id").agg(F.count("*").alias("lines"), F.sum("qty").alias("units")).toPandas()
@@ -160,7 +161,7 @@ class Processor:
                 .groupBy("store_id", "item_id", "hour", "channel").agg(F.sum("qty").alias("units"))
                 .toPandas())
         fc = serving.read("forecasts")
-        if fc.empty:
+        if fc.empty or self.bronze(C.TOPIC_INVENTORY) is None:
             return
         fc["sale_date"] = fc["sale_date"].astype(str)
         fc = (fc[fc["sale_date"] == day].sort_values("origin").groupby(["item_id", "store_id"]).tail(1)
@@ -206,7 +207,7 @@ class Processor:
         if alerts.empty:
             return
         alerts = alerts.assign(raised_at=pd.Timestamp.now(tz="UTC"))
-        serving.write(alerts, "alerts", append=True)
+        serving.write(alerts, "alerts", append=True, key=["business_date", "store_id", "dept_id", "item_id", "alert"])
         print(f"  {len(alerts)} alerts ({', '.join(alerts.alert.unique())})", flush=True)
 
     # ---------------- end of day ----------------
@@ -222,8 +223,8 @@ class Processor:
                   .withColumn("sale_date", F.to_date(F.lit(day)))
                   .withColumn("stockout", ((F.col("lost_units") > 0) | ((F.col("on_hand") <= 0) & (F.col("units") == 0))).cast("int"))
                   .withColumn("units", F.col("units").cast("int")))
-        silver.select("item_id", "store_id", "sale_date", "units", "ecom_units", "stockout", "on_hand", "lost_units") \
-            .write.mode("append").saveAsTable(f"{db}.sales_stream")
+        write_partitioned(spark, silver.select("item_id", "store_id", "sale_date", "units", "ecom_units", "stockout",
+                                               "on_hand", "lost_units"), f"{db}.sales_stream", "sale_date")
         day_pd = silver.toPandas()
 
         # Forecast accuracy for this day, by how far ahead the forecast was made.
@@ -309,7 +310,7 @@ class Processor:
             test = feats.where(F.col("sale_date") > F.to_date(F.lit(cutoff))).where(F.col("stockout") == 0)
             reg = load_registry()
             kind = next(v["kind"] for v in reg["versions"] if v["version"] == reg["champion"])
-            challenger = fit(kind, train, sample=0.3)
+            challenger = fit(kind, train, sample=self.retrain_sample)
             with self.lock:
                 champ_model, champ_version = self.model, self.version
             cols = ["item_id", "store_id", "sale_date", "y", "yhat"]
@@ -319,7 +320,7 @@ class Processor:
             w_ch, w_cp = wape(ch.y, ch.yhat), wape(cp.y, cp.yhat)
             promote = w_ch < w_cp
             version = register(challenger, kind, {"wape_last7": w_ch, "champion_wape_last7": w_cp},
-                               trained_through=cutoff, promote=promote)
+                               trained_through=cutoff, promote=promote, source="stream")
             serving.write(pd.DataFrame([{
                 "business_date": day, "challenger": version, "champion": champ_version, "challenger_wape": w_ch,
                 "champion_wape": w_cp, "promoted": promote, "seconds": time.time() - t0}]), "model_events", append=True)
@@ -332,7 +333,11 @@ class Processor:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trigger-seconds", type=int, default=10)
-    ap.add_argument("--reset", action="store_true", help="clear stream outputs and start from the earliest offsets")
+    ap.add_argument("--reset", action="store_true",
+                    help="start a new replay: clear stream outputs, restore the batch champion and the "
+                         "end-of-history plan, and read only events produced from now on")
+    ap.add_argument("--driver-memory", default="3g", help="Spark driver heap (the PC has 8 GB in total)")
+    ap.add_argument("--retrain-sample", type=float, default=0.15, help="share of rows used by the weekly retrain")
     args = ap.parse_args()
     import shutil
     if args.reset:
@@ -342,15 +347,22 @@ def main():
                      "alerts", "inventory_health", "inventory_daily", "pipeline_health", "model_events"]:
             (C.LAKE_SERVING / f"{name}.parquet").unlink(missing_ok=True)
 
-    spark = get_spark("stream_processor", memory="4g", cores=6, shuffle_partitions=8)
-    spark.conf.set("spark.scheduler.mode", "FAIR")
+    spark = get_spark("stream_processor", memory=args.driver_memory, cores=6, shuffle_partitions=8,
+                      extra={"spark.scheduler.mode": "FAIR"})
     if args.reset:
         spark.sql(f"DROP TABLE IF EXISTS {C.HIVE_DB}.sales_stream")
-    proc = Processor(spark)
+        version, n = replan_at_history_end(spark)
+        print(f"reset: champion {version}, plan at {C.HISTORY_END} re-published ({n:,} policies)", flush=True)
+        # Topics keep earlier replays' events; this replay starts after them.
+        streaming.ensure_topics()
+        starting = json.dumps(streaming.end_offsets())
+    else:
+        starting = "earliest"      # only used when there is no checkpoint yet
+    proc = Processor(spark, args.retrain_sample)
     stream = (spark.readStream.format("kafka")
               .option("kafka.bootstrap.servers", C.KAFKA_BOOTSTRAP)
               .option("subscribe", ",".join(SCHEMAS))
-              .option("startingOffsets", "earliest")
+              .option("startingOffsets", starting)
               .option("maxOffsetsPerTrigger", 200_000)
               .option("failOnDataLoss", "false")
               .load())
@@ -358,6 +370,8 @@ def main():
          .option("checkpointLocation", (C.CHECKPOINTS / "stream").as_uri())
          .trigger(processingTime=f"{args.trigger_seconds} seconds")
          .start())
+    if args.reset:
+        streaming.mark_ready(json.loads(starting))
     print("stream processor running", flush=True)
     q.awaitTermination()
 
