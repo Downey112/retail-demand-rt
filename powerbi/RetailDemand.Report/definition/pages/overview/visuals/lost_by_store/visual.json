@@ -120,7 +120,7 @@
             "altText": {
               "expr": {
                 "Literal": {
-                  "Value": "'Bar chart of units lost to stock-outs per store over the replay, largest first.'"
+                  "Value": "'Bar chart of units lost to stock-outs per store over the replay, largest first. It is not filtered by the store slicer.'"
                 }
               }
             }
@@ -140,7 +140,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'All 28 days'"
+                  "Value": "'All stores, all 28 days'"
                 }
               }
             }
