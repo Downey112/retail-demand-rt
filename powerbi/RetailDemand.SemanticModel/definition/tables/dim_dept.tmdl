@@ -1,0 +1,23 @@
+table dim_dept
+	lineageTag: 7698e747-e50c-5268-9aa5-d785468bf140
+
+	column dept_id
+		dataType: string
+		lineageTag: 22b9b68d-7f43-5194-b4fa-8bec85bd22dd
+		summarizeBy: none
+		sourceColumn: dept_id
+
+	column category
+		dataType: string
+		lineageTag: fc8f00d5-cd1d-535c-a914-b913d75d10fe
+		summarizeBy: none
+		sourceColumn: category
+
+	partition dim_dept = m
+		mode: import
+		source =
+				let
+				    Source = Table.Distinct(Table.SelectColumns(fact_forecast, {"dept_id"})),
+				    Category = Table.AddColumn(Source, "category", each Text.BeforeDelimiter([dept_id], "_"), type text)
+				in
+				    Category

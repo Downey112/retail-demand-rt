@@ -1,0 +1,31 @@
+relationship inv_date
+	fromColumn: fact_inventory.business_date
+	toColumn: dim_date.date
+
+relationship inv_store
+	fromColumn: fact_inventory.store_id
+	toColumn: dim_store.store_id
+
+relationship fc_date
+	fromColumn: fact_forecast.business_date
+	toColumn: dim_date.date
+
+relationship fc_store
+	fromColumn: fact_forecast.store_id
+	toColumn: dim_store.store_id
+
+relationship fc_dept
+	fromColumn: fact_forecast.dept_id
+	toColumn: dim_dept.dept_id
+
+relationship alert_date
+	fromColumn: alerts.business_date
+	toColumn: dim_date.date
+
+relationship alert_store
+	fromColumn: alerts.store_id
+	toColumn: dim_store.store_id
+
+relationship alert_dept
+	fromColumn: alerts.dept_id
+	toColumn: dim_dept.dept_id

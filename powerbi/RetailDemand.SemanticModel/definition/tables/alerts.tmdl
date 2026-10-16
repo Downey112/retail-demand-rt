@@ -1,0 +1,78 @@
+table alerts
+	lineageTag: b4055967-e608-5dc6-8f0a-59ff9a0e93f2
+
+	measure Alerts = COUNTROWS ( alerts )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: fd74d4d1-71e9-55f5-b49d-e433200e8951
+
+	measure 'Title Alerts by Day' = "Alerts raised per day · " & [Scope Label]
+		displayFolder: Titles
+		lineageTag: 3a6c8824-3465-548e-b468-e8e4fbbb7e6a
+
+	measure 'Title Alert List' = "Alert log, newest first · " & FORMAT ( [Alerts], "#,0" ) & " alerts"
+		displayFolder: Titles
+		lineageTag: 2657d216-7547-52d6-b80d-d5696f2ef762
+
+	column business_date
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		lineageTag: 0e492405-8c72-5729-940a-c41cdecd8ac0
+		summarizeBy: none
+		sourceColumn: business_date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column store_id
+		dataType: string
+		lineageTag: 061d97fc-03b3-55a7-88e6-08bdeceb921b
+		summarizeBy: none
+		sourceColumn: store_id
+
+	column dept_id
+		dataType: string
+		lineageTag: 6bf2f5f3-9eb4-5402-b082-15fb8e9874ed
+		summarizeBy: none
+		sourceColumn: dept_id
+
+	column item_id
+		dataType: string
+		lineageTag: 55bbf4eb-ca55-5396-b3ec-6e73f2b84385
+		summarizeBy: none
+		sourceColumn: item_id
+
+	column alert
+		dataType: string
+		lineageTag: ce4161fd-fb09-5fbe-a19d-8c52e9cc6841
+		summarizeBy: none
+		sourceColumn: alert
+
+	column severity
+		dataType: string
+		lineageTag: 73403218-3a8d-54eb-bb57-ca61d7464e0c
+		summarizeBy: none
+		sourceColumn: severity
+
+	column detail
+		dataType: string
+		lineageTag: 778c2d79-3913-5f55-8027-dfd4b3163979
+		summarizeBy: none
+		sourceColumn: detail
+
+	partition alerts = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\alerts.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"business_date", type date},
+				        {"store_id", type text},
+				        {"dept_id", type text},
+				        {"item_id", type text},
+				        {"alert", type text},
+				        {"severity", type text},
+				        {"detail", type text}
+				    }, "en-US")
+				in
+				    Typed

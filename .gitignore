@@ -10,3 +10,4 @@ spark-warehouse/
 .pytest_cache/
 *.egg-info/
 test_*.parquet
+!powerbi/data/

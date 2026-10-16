@@ -1,0 +1,44 @@
+table dim_date
+	lineageTag: 1a94ad80-b239-5287-a8ec-e502efe18bd6
+
+	column date
+		dataType: dateTime
+		formatString: d mmm
+		lineageTag: 384077d1-b8f0-5b8a-b991-bbafb383a710
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column week
+		dataType: string
+		lineageTag: 12b06185-c4bf-55f9-bb84-5feaf58d7e12
+		summarizeBy: none
+		sourceColumn: week
+
+	column weekday
+		dataType: string
+		lineageTag: 119cffec-e032-5c18-aef2-ecf656d606b7
+		summarizeBy: none
+		sourceColumn: weekday
+
+	column is_weekend
+		dataType: boolean
+		lineageTag: 10987e8c-0df8-50e3-ae93-77cc516e5925
+		summarizeBy: none
+		sourceColumn: is_weekend
+
+	partition dim_date = m
+		mode: import
+		source =
+				let
+				    // The 28 replayed business days, Monday 23 May to Sunday 19 June 2016
+				    Start = #date(2016, 5, 23),
+				    Dates = List.Dates(Start, 28, #duration(1, 0, 0, 0)),
+				    Base = Table.FromList(Dates, Splitter.SplitByNothing(), {"date"}),
+				    Typed = Table.TransformColumnTypes(Base, {{"date", type date}}),
+				    Week = Table.AddColumn(Typed, "week", each "Week " & Text.From(Number.IntegerDivide(Duration.Days([date] - Start), 7) + 1), type text),
+				    Weekday = Table.AddColumn(Week, "weekday", each Date.ToText([date], "ddd", "en-US"), type text),
+				    Weekend = Table.AddColumn(Weekday, "is_weekend", each Date.DayOfWeek([date], Day.Monday) >= 5, type logical)
+				in
+				    Weekend

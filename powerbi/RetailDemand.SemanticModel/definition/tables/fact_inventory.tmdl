@@ -1,0 +1,278 @@
+table fact_inventory
+	lineageTag: 6f024ae4-5e2b-543b-81c1-049e976d9845
+
+	measure 'Units Sold' = SUM ( fact_inventory[units_sold] )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: 6dd4c79f-3ef1-5ca7-8769-2e0a901f54b4
+
+	measure 'Lost Units' = SUM ( fact_inventory[lost_units] )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: 71cb2a63-4237-56a6-b3db-b6c47f0cea72
+
+	measure 'Fill Rate' =
+			VAR _sold = [Units Sold]
+			VAR _lost = [Lost Units]
+			RETURN
+			    DIVIDE ( _sold, _sold + _lost )
+		formatString: 0.0%
+		displayFolder: Base
+		lineageTag: 45585b05-030e-5071-82bd-2b82f3fc3c6e
+
+	measure 'Stock-outs at Close' =
+			-- Average SKU-stores out of stock at end of day
+			AVERAGEX ( VALUES ( dim_date[date] ), CALCULATE ( SUM ( fact_inventory[skus_stockout] ) ) )
+		formatString: #,0
+		displayFolder: Base
+		lineageTag: e3b84677-359a-504d-bd0a-6229941e7c50
+
+	measure 'Fill Rate L7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 0
+			RETURN
+			    CALCULATE (
+			        [Fill Rate],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: 0.0%
+		displayFolder: Comparison
+		lineageTag: 92c0b821-fa0e-5992-b900-fb47f121b316
+
+	measure 'Fill Rate P7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 7
+			RETURN
+			    CALCULATE (
+			        [Fill Rate],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: 0.0%
+		displayFolder: Comparison
+		lineageTag: 7b2a5582-c091-5e21-97ec-7422763e455d
+
+	measure 'Lost Units L7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 0
+			RETURN
+			    CALCULATE (
+			        [Lost Units],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: #,0
+		displayFolder: Comparison
+		lineageTag: 9ed33a96-c60a-56ce-8b50-70b287e2db88
+
+	measure 'Lost Units P7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 7
+			RETURN
+			    CALCULATE (
+			        [Lost Units],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: #,0
+		displayFolder: Comparison
+		lineageTag: de582c5a-a15e-56dd-8299-3e1a9a2b5417
+
+	measure 'Stock-outs L7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 0
+			RETURN
+			    CALCULATE (
+			        [Stock-outs at Close],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: #,0
+		displayFolder: Comparison
+		lineageTag: a5079f4a-6945-5db3-973a-423f6e8ac586
+
+	measure 'Stock-outs P7D' =
+			VAR _end = CALCULATE ( MAX ( fact_inventory[business_date] ), REMOVEFILTERS ( dim_date ) ) - 7
+			RETURN
+			    CALCULATE (
+			        [Stock-outs at Close],
+			        REMOVEFILTERS ( dim_date ),
+			        dim_date[date] > _end - 7,
+			        dim_date[date] <= _end
+			    )
+		formatString: #,0
+		displayFolder: Comparison
+		lineageTag: a5dd2210-e24a-5d5c-b2c9-9083c97f8310
+
+	measure 'Fill Rate Var pp' = 100 * ( [Fill Rate L7D] - [Fill Rate P7D] )
+		formatString: +0.0;-0.0;0.0
+		displayFolder: Variance
+		lineageTag: 41c5d888-19b3-5d99-b753-f57a6a999a3c
+
+	measure 'Lost Units Var %' = DIVIDE ( [Lost Units L7D] - [Lost Units P7D], [Lost Units P7D] )
+		formatString: +0%;-0%;0%
+		displayFolder: Variance
+		lineageTag: 4499ee93-9cb7-5729-b053-f52f211832e9
+
+	measure 'Stock-outs Var %' = DIVIDE ( [Stock-outs L7D] - [Stock-outs P7D], [Stock-outs P7D] )
+		formatString: +0%;-0%;0%
+		displayFolder: Variance
+		lineageTag: 0fe7439f-c1cb-5717-9bc1-0c138ac21f4a
+
+	measure 'Label Fill Rate' =
+			VAR _v = [Fill Rate Var pp]
+			RETURN
+			    IF ( ISBLANK ( [Fill Rate P7D] ), "No prior week",
+			        IF ( _v >= 0, "▲ ", "▼ " ) & FORMAT ( ABS ( _v ), "0.0" ) & " pp vs prior 7 days" )
+		displayFolder: Labels
+		lineageTag: 46f08e9a-5a37-5319-bbed-7fc51a7a97a7
+
+	measure 'Color Fill Rate' =
+			VAR _v = [Fill Rate Var pp]
+			RETURN
+			    SWITCH ( TRUE (), ISBLANK ( [Fill Rate P7D] ), "#64748B", _v >= 0, "#16A34A", "#DC2626" )
+		displayFolder: Colors
+		lineageTag: fc96b9bd-c348-5940-a518-a69e2bc21f92
+
+	measure 'Label Lost Units' =
+			VAR _v = [Lost Units Var %]
+			RETURN
+			    IF ( ISBLANK ( _v ), "No prior week",
+			        IF ( _v > 0, "▲ ", "▼ " ) & FORMAT ( ABS ( _v ), "0%" ) & " vs prior 7 days" )
+		displayFolder: Labels
+		lineageTag: f3e6a165-e744-5063-b28d-7c5ab4973d10
+
+	measure 'Color Lost Units' =
+			VAR _v = [Lost Units Var %]
+			RETURN
+			    SWITCH ( TRUE (), ISBLANK ( _v ), "#64748B", _v <= 0, "#16A34A", "#DC2626" )
+		displayFolder: Colors
+		lineageTag: a5d4df8e-1bba-54eb-8db8-0d585322a594
+
+	measure 'Label Stock-outs' =
+			VAR _v = [Stock-outs Var %]
+			RETURN
+			    IF ( ISBLANK ( _v ), "No prior week",
+			        IF ( _v > 0, "▲ ", "▼ " ) & FORMAT ( ABS ( _v ), "0%" ) & " vs prior 7 days" )
+		displayFolder: Labels
+		lineageTag: 36c968ce-9356-5e41-9990-17892e04cde8
+
+	measure 'Color Stock-outs' =
+			VAR _v = [Stock-outs Var %]
+			RETURN
+			    SWITCH ( TRUE (), ISBLANK ( _v ), "#64748B", _v <= 0, "#16A34A", "#DC2626" )
+		displayFolder: Colors
+		lineageTag: ab9221ed-9aec-5a1a-bb22-1bd0963b77de
+
+	measure 'Scope Label' =
+			VAR _n = COUNTROWS ( VALUES ( dim_store[store_id] ) )
+			RETURN
+			    IF (
+			        NOT ISFILTERED ( dim_store[store_id] ), "All 4 stores",
+			        IF ( _n = 1, "Store " & SELECTEDVALUE ( dim_store[store_id] ),
+			            CONCATENATEX ( VALUES ( dim_store[store_id] ), dim_store[store_id], ", ", dim_store[store_id] ) )
+			    )
+		displayFolder: Titles
+		lineageTag: f640d3c4-b01b-58ee-ab07-4967de28b5b8
+
+	measure 'Title Fill Trend' = "Daily fill rate · " & [Scope Label]
+		displayFolder: Titles
+		lineageTag: 1b3005ee-1454-5906-886f-f736ea178ab2
+
+	measure 'Title Lost by Store' = "Units lost to stock-outs by store"
+		displayFolder: Titles
+		lineageTag: 1d4c0cbc-9c1a-521c-9d9d-e7e0137945b6
+
+	column business_date
+		dataType: dateTime
+		isHidden
+		formatString: yyyy-mm-dd
+		lineageTag: 77e6afb0-2ca7-5c95-980a-42a827101c34
+		summarizeBy: none
+		sourceColumn: business_date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column store_id
+		dataType: string
+		isHidden
+		lineageTag: 46bb9046-d867-59eb-8526-1d7976f5a92a
+		summarizeBy: none
+		sourceColumn: store_id
+
+	column units_sold
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 0955bf47-6c4c-5296-be1b-0543e4d73531
+		summarizeBy: none
+		sourceColumn: units_sold
+
+	column lost_units
+		dataType: double
+		isHidden
+		formatString: #,0
+		lineageTag: 8f4dce7c-f809-5198-9560-35c467a46d2e
+		summarizeBy: none
+		sourceColumn: lost_units
+
+	column skus_stockout
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 5a7f0307-1f0a-532b-9c3b-cd42f00add53
+		summarizeBy: none
+		sourceColumn: skus_stockout
+
+	column skus_below_rop
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: 8673d0ae-b422-597e-b520-6bb3d54c50f4
+		summarizeBy: none
+		sourceColumn: skus_below_rop
+
+	column skus_overstock
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: a15e8fe0-6a45-521b-b6fe-5117ae09d6ac
+		summarizeBy: none
+		sourceColumn: skus_overstock
+
+	column skus_healthy
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: e68b4024-c619-5149-82aa-5abb8bb0e2c0
+		summarizeBy: none
+		sourceColumn: skus_healthy
+
+	column inventory_value
+		dataType: double
+		isHidden
+		formatString: #,0
+		lineageTag: ea012a52-4467-55d6-ab6c-1a15688575cd
+		summarizeBy: none
+		sourceColumn: inventory_value
+
+	partition fact_inventory = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(DataFolder & "\fact_inventory.csv"), [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars = true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {
+				        {"business_date", type date},
+				        {"store_id", type text},
+				        {"units_sold", Int64.Type},
+				        {"lost_units", type number},
+				        {"skus_stockout", Int64.Type},
+				        {"skus_below_rop", Int64.Type},
+				        {"skus_overstock", Int64.Type},
+				        {"skus_healthy", Int64.Type},
+				        {"inventory_value", type number}
+				    }, "en-US")
+				in
+				    Typed

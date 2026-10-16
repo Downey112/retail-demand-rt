@@ -1,0 +1,201 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.3.0/schema.json",
+  "name": "alert_log",
+  "position": {
+    "x": 24,
+    "y": 296,
+    "z": 29000,
+    "height": 400,
+    "width": 1232,
+    "tabOrder": 29000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "business_date"
+                }
+              },
+              "queryRef": "alerts.business_date",
+              "nativeQueryRef": "business_date",
+              "displayName": "Date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "store_id"
+                }
+              },
+              "queryRef": "alerts.store_id",
+              "nativeQueryRef": "store_id",
+              "displayName": "Store"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "dept_id"
+                }
+              },
+              "queryRef": "alerts.dept_id",
+              "nativeQueryRef": "dept_id",
+              "displayName": "Department"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "item_id"
+                }
+              },
+              "queryRef": "alerts.item_id",
+              "nativeQueryRef": "item_id",
+              "displayName": "Item"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "alert"
+                }
+              },
+              "queryRef": "alerts.alert",
+              "nativeQueryRef": "alert",
+              "displayName": "Alert"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "severity"
+                }
+              },
+              "queryRef": "alerts.severity",
+              "nativeQueryRef": "severity",
+              "displayName": "Severity"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "detail"
+                }
+              },
+              "queryRef": "alerts.detail",
+              "nativeQueryRef": "detail",
+              "displayName": "Detail"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "alerts"
+                  }
+                },
+                "Property": "business_date"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "objects": {
+      "total": [
+        {
+          "properties": {
+            "totals": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "alerts"
+                    }
+                  },
+                  "Property": "Title Alert List"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "general": [
+        {
+          "properties": {
+            "altText": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Table listing every alert, newest first.'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}
