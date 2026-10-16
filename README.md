@@ -11,21 +11,9 @@ History up to 2016-05-22 sits in an "operational" retail database and is batch-i
 
 A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. The finished replay is also published as a **Power BI report** ([powerbi/RetailDemand.pbip](powerbi/RetailDemand.pbip)) and as a **web dashboard** with the same layout: **<https://downey112.github.io/retail-demand-rt/dashboard/>**. See [docs/power_bi.md](docs/power_bi.md) for the design and the semantic model.
 
-**Web dashboard** (click to open):
-
 [![Web dashboard: fill rate, lost units, stock-outs, forecast WAPE and bias over the last 7 days, daily fill-rate and actual-vs-forecast trends, lost units by store, accuracy by department and the weekly retrain log](docs/dashboard_preview.png)](https://downey112.github.io/retail-demand-rt/dashboard/)
 
-**Web dashboard** (alerts section):
-
-![Web dashboard alerts section: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/dashboard_alerts_preview.png)
-
-**Power BI report** (overview page in Power BI Desktop):
-
-![Power BI report: KPI cards with 7-day comparisons, daily fill rate, actual vs next-day forecast, lost units by store, forecast accuracy by department and the retrain log](docs/powerbi_preview.png)
-
-**Power BI report** (alerts page):
-
-![Power BI alerts page: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/powerbi_alerts_preview.png)
+*The web dashboard (click to open it). More screenshots, including the Power BI report, are under [Dashboards](#dashboards).*
 
 ## Architecture
 
@@ -101,6 +89,28 @@ See [docs/results.md](docs/results.md) for the full tables.
 * Four weekly retrains. Each challenger was within 0.006 WAPE of the champion but never better, so the champion was kept every time.
 
 ![replay summary](docs/replay_summary.png)
+
+## Dashboards
+
+The same results are available in two forms, built from one extract (`scripts/export_bi.py`):
+
+* **Web dashboard**: <https://downey112.github.io/retail-demand-rt/dashboard/>. A static page on GitHub Pages; nothing to install.
+* **Power BI report**: [powerbi/RetailDemand.pbip](powerbi/RetailDemand.pbip). Open it in Power BI Desktop and select Refresh. [docs/power_bi.md](docs/power_bi.md) covers the design, the semantic model and the DAX.
+
+![Power BI report overview page: KPI cards with 7-day comparisons, daily fill rate, actual vs next-day forecast, lost units by store, forecast accuracy by department and the retrain log](docs/powerbi_preview.png)
+
+<details>
+<summary>More screenshots: alerts pages</summary>
+
+**Power BI report, alerts page**
+
+![Power BI alerts page: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/powerbi_alerts_preview.png)
+
+**Web dashboard, alerts section**
+
+![Web dashboard alerts section: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/dashboard_alerts_preview.png)
+
+</details>
 
 ## Limitations (stated, not hidden)
 
