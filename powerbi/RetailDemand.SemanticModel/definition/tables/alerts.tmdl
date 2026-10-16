@@ -6,6 +6,12 @@ table alerts
 		displayFolder: Base
 		lineageTag: fd74d4d1-71e9-55f5-b49d-e433200e8951
 
+	measure 'Alerts Axis Max' = 1.2 * MAXX ( ALLSELECTED ( alerts[alert] ), [Alerts] )
+		formatString: #,0
+		isHidden
+		displayFolder: Base
+		lineageTag: 53de8354-a3f7-5802-bf4c-6b91e5ab595c
+
 	measure 'Title Alerts by Day' = "Alerts raised per day · " & [Scope Label]
 		displayFolder: Titles
 		lineageTag: 3a6c8824-3465-548e-b468-e8e4fbbb7e6a

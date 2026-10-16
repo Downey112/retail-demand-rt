@@ -6,7 +6,7 @@
     "y": 24,
     "z": 24000,
     "height": 56,
-    "width": 728,
+    "width": 808,
     "tabOrder": 24000
   },
   "visual": {
@@ -31,7 +31,7 @@
               {
                 "textRuns": [
                   {
-                    "value": "Raised by the stream processor at end of day (STOCKOUT), during the day (STOCKOUT_INTRADAY) and when department demand is more than 25% off its forecast (DEMAND_ANOMALY)",
+                    "value": "STOCKOUT: none on hand at close · STOCKOUT_INTRADAY: sold out during the day · DEMAND_ANOMALY: department over 25% off forecast",
                     "textStyle": {
                       "fontFamily": "Segoe UI",
                       "fontSize": "9pt",

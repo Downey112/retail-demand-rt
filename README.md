@@ -19,6 +19,10 @@ A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. The
 
 ![Power BI report: KPI cards with 7-day comparisons, daily fill rate, actual vs next-day forecast, lost units by store, forecast accuracy by department and the retrain log](docs/powerbi_preview.png)
 
+**Power BI report** (alerts page):
+
+![Power BI alerts page: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/powerbi_alerts_preview.png)
+
 ## Architecture
 
 ```mermaid
