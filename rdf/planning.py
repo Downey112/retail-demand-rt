@@ -9,7 +9,8 @@ from pyspark.sql import functions as F
 from rdf import config as C
 from rdf import inventory, serving
 from rdf.features import HISTORY_NEEDED_DAYS, add_future_spine, build_features, sales_source
-from rdf.models import predict
+from rdf.models import load_champion, predict, reset_to_batch_champion
+from rdf.spark import write_partitioned
 
 
 def forecast_at(spark: SparkSession, origin: str, model: PipelineModel, version: str) -> pd.DataFrame:
@@ -40,7 +41,19 @@ def policy_from_forecast(fc: pd.DataFrame, series_error: pd.DataFrame) -> pd.Dat
 def publish_plan(spark: SparkSession, fc: pd.DataFrame, pol: pd.DataFrame):
     """Store forecasts and policy in Hive (history) and in the serving layer (latest)."""
     db = C.HIVE_DB
-    spark.createDataFrame(fc).write.mode("append").saveAsTable(f"{db}.forecasts")
+    write_partitioned(spark, spark.createDataFrame(fc), f"{db}.forecasts", "origin")
     spark.createDataFrame(pol).write.mode("overwrite").saveAsTable(f"{db}.inventory_policy")
     serving.write(fc, "forecasts", append=True, key=["item_id", "store_id", "sale_date", "origin"])
     serving.write(pol, "inventory_policy")
+
+
+def replan_at_history_end(spark: SparkSession) -> tuple[str, int]:
+    """Restore the starting point of a replay: batch champion, and only the plan made at HISTORY_END."""
+    reset_to_batch_champion()          # a model trained on streamed days would leak them into this plan
+    version, model = load_champion()
+    fc = forecast_at(spark, C.HISTORY_END, model, version)
+    pol = policy_from_forecast(fc, serving.read("series_error"))
+    spark.sql(f"DROP TABLE IF EXISTS {C.HIVE_DB}.forecasts")
+    serving.write(fc.iloc[:0], "forecasts")
+    publish_plan(spark, fc, pol)
+    return version, len(pol)

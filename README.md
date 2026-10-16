@@ -74,6 +74,17 @@ flowchart LR
 See [docs/results.md](docs/results.md) for the full tables.
 
 <!-- RESULTS -->
+**Backtest (last 28 days of training data, 341,488 SKU-store-days).** Random forest is the champion with WAPE 0.710, just ahead of GBT (0.713) and a 28-day moving average (0.723). SBA/Croston scores 0.737 and seasonal naive 0.868. Plain baselines come close because most series are intermittent. On a 300-series sample, ARIMA wins (0.651 vs 0.672 for the random forest), but it does not scale to 12,196 series.
+
+**Live replay (28 days streamed through Kafka at 60 s per business day).**
+
+* Next-day forecast, SKU level: WAPE **0.725**, bias **-6.3%**, close to the backtest.
+* Fill rate **99.14%**: 519,047 units sold, 4,521 lost to stock-outs. By week: 99.9%, 98.8%, 98.7%, 99.2%. Week 1 runs on simulated opening stock. Weekdays 99.3%, weekends 98.8%.
+* 149 micro-batches, median batch 8.9 s, 95th-percentile event age 79 s.
+* Alerts: 1,352 end-of-day stock-outs, 564 intraday stock-outs, 93 demand anomalies.
+* Four weekly retrains. Each challenger was within 0.006 WAPE of the champion but never better, so the champion was kept every time.
+
+![replay summary](docs/replay_summary.png)
 
 ## Limitations (stated, not hidden)
 
@@ -81,6 +92,8 @@ See [docs/results.md](docs/results.md) for the full tables.
 * **Single machine.** The cluster pieces (HDFS, a multi-broker Kafka, a Hive metastore service, Spark on YARN or Kubernetes) are replaced by single-node equivalents. The code would move to a cluster by changing paths and the Spark master, not the logic.
 * **MLlib vs LightGBM.** MLlib's tree models have no Poisson or Tweedie loss and no native categorical splits, which is a real handicap on zero-heavy retail data. The M5 winners used LightGBM. MLlib is used here because the brief asks for distributed training.
 * **At-least-once landing.** `foreachBatch` can replay a micro-batch after a crash. Bronze can then hold duplicates, but every downstream step de-duplicates on `txn_id`, so silver and gold are exactly-once in effect.
+* **Idempotent close.** The end-of-day writes are safe to repeat: Hive `sales_stream` and `forecasts` are partitioned by day and each close overwrites its own partition, so a crash mid-close and a replayed batch leave no duplicates.
+* **Reorder point ignores the weekly pattern.** The policy uses the *average* daily forecast times the lead time. Weekend demand runs well above that average, so Saturdays and Sundays (2 of 7 days, 30% of units sold) account for about 45% of lost sales. Summing the day-by-day forecast over the lead time would fix this and is the obvious next step. Week 1 of the replay also runs on generous simulated opening stock, so the results report fill rate by week.
 * **Data source.** The official M5 files need Kaggle competition rules accepted. This run used the public MIT-licensed parquet mirror `marcozanotti/m5-competition-dataset-parquet` (same data, long format, leading zeros before each product's launch trimmed).
 
 ## Run it
@@ -96,10 +109,12 @@ python scripts/ingest_batch.py           # Spark JDBC -> lake -> Hive          ~
 python scripts/train.py                  # features, backtest, champion, plan  ~25 min
 
 powershell -File scripts/kafka.ps1 -Format              # terminal 1: broker
-python scripts/stream_processor.py --reset              # terminal 2: Spark streaming
+python scripts/stream_processor.py --reset              # terminal 2: Spark streaming (restores the starting plan)
 python scripts/store_simulator.py --seconds-per-day 90 --wait-for-plan   # terminal 3
 streamlit run app.py                                    # terminal 4: dashboard
 
 python scripts/report.py                 # after the replay: docs/results.md + figure
 python -m pytest                         # unit tests + Spark leakage test
 ```
+
+Each replay is one `stream_processor.py --reset` plus one simulator run. The reset clears the stream outputs, drops models trained during an earlier replay, re-publishes the end-of-history plan and starts reading Kafka after any earlier replay's events. The simulator waits until the reset is ready, so the two can start in either order. On a 6-core, 8 GB laptop the end-of-day cycle takes about 2 minutes (about 5 while a weekly retrain runs in the background), so with `--wait-for-plan` a full 28-day replay takes about 1.5 to 2 hours at `--seconds-per-day` 90 or less. The processor defaults (`--driver-memory 3g`, `--retrain-sample 0.15`) are sized for 8 GB of RAM; leave the dashboard closed during the run if memory is tight.

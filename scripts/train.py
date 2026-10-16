@@ -17,7 +17,7 @@ from rdf import serving
 from rdf.features import build_features, sales_source
 from rdf.metrics import summarise
 from rdf.models import STAT_SCHEMA, fit, load_champion, make_stat_forecaster, predict, register
-from rdf.planning import forecast_at, policy_from_forecast, publish_plan
+from rdf.planning import forecast_at, policy_from_forecast, publish_plan, replan_at_history_end
 from rdf.spark import get_spark
 
 
@@ -36,14 +36,8 @@ def main():
     spark = get_spark("train", memory="4g")
     db = C.HIVE_DB
     if args.plan_only:
-        version, champion = load_champion()
-        err = serving.read("series_error")
-        fc = forecast_at(spark, C.HISTORY_END, champion, version)
-        pol = policy_from_forecast(fc, err)
-        spark.sql(f"DROP TABLE IF EXISTS {db}.forecasts")
-        serving.write(fc.iloc[:0], "forecasts")
-        publish_plan(spark, fc, pol)
-        log(t0, f"plan re-published with {version}: {len(pol):,} policies")
+        version, n = replan_at_history_end(spark)
+        log(t0, f"plan re-published with {version}: {n:,} policies")
         return
     end = date.fromisoformat(C.HISTORY_END)
     origins = [(end - timedelta(days=7 * k)).isoformat() for k in range(C.VALIDATION_ORIGINS, 0, -1)]
