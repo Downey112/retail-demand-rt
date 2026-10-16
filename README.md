@@ -15,6 +15,10 @@ A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. The
 
 [![Web dashboard: fill rate, lost units, stock-outs, forecast WAPE and bias over the last 7 days, daily fill-rate and actual-vs-forecast trends, lost units by store, accuracy by department and the weekly retrain log](docs/dashboard_preview.png)](https://downey112.github.io/retail-demand-rt/dashboard/)
 
+**Web dashboard** (alerts section):
+
+![Web dashboard alerts section: alert counts by type, alerts per day stacked by type, and the alert log newest first](docs/dashboard_alerts_preview.png)
+
 **Power BI report** (overview page in Power BI Desktop):
 
 ![Power BI report: KPI cards with 7-day comparisons, daily fill rate, actual vs next-day forecast, lost units by store, forecast accuracy by department and the retrain log](docs/powerbi_preview.png)
