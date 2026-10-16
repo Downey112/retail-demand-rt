@@ -11,7 +11,13 @@ History up to 2016-05-22 sits in an "operational" retail database and is batch-i
 
 A Streamlit dashboard reads the serving layer and refreshes every 5 seconds. The finished replay is also published as a **Power BI report** ([powerbi/RetailDemand.pbip](powerbi/RetailDemand.pbip)) and as a **web dashboard** with the same layout: **<https://downey112.github.io/retail-demand-rt/dashboard/>**. See [docs/power_bi.md](docs/power_bi.md) for the design and the semantic model.
 
+**Web dashboard** (click to open):
+
 [![Web dashboard: fill rate, lost units, stock-outs, forecast WAPE and bias over the last 7 days, daily fill-rate and actual-vs-forecast trends, lost units by store, accuracy by department and the weekly retrain log](docs/dashboard_preview.png)](https://downey112.github.io/retail-demand-rt/dashboard/)
+
+**Power BI report** (overview page in Power BI Desktop):
+
+![Power BI report: KPI cards with 7-day comparisons, daily fill rate, actual vs next-day forecast, lost units by store, forecast accuracy by department and the retrain log](docs/powerbi_preview.png)
 
 ## Architecture
 
