@@ -29,7 +29,11 @@ Two 1280 × 720 pages laid out on an 8 px grid. The canvas is `#F4F6F9` and visu
 | Drivers | Daily fill-rate line, actual vs next-day forecast lines (forecast dashed), and lost units by store as sorted bars. |
 | Detail | Forecast accuracy by department (WAPE, bias, stock-out SKU-days), and the weekly champion/challenger retrain log. |
 
+![Power BI overview page](powerbi_preview.png)
+
 **Alerts** has alert counts by type, alerts per day stacked by type, and the full alert log (filterable by store and department).
+
+![Power BI alerts page](powerbi_alerts_preview.png)
 
 ### Semantic model
 
