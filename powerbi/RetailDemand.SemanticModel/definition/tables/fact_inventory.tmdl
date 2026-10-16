@@ -180,7 +180,7 @@ table fact_inventory
 		displayFolder: Titles
 		lineageTag: 1b3005ee-1454-5906-886f-f736ea178ab2
 
-	measure 'Title Lost by Store' = "Units lost to stock-outs by store"
+	measure 'Title Lost by Store' = "Lost units by store"
 		displayFolder: Titles
 		lineageTag: 1d4c0cbc-9c1a-521c-9d9d-e7e0137945b6
 

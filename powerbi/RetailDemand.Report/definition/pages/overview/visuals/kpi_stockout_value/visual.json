@@ -62,7 +62,7 @@
             "text": {
               "expr": {
                 "Literal": {
-                  "Value": "'Stock-outs at close · daily avg, last 7 days'"
+                  "Value": "'Stock-outs per day · last 7 days'"
                 }
               }
             },

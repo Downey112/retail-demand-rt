@@ -240,7 +240,7 @@
               }
             },
             "gridHorizontalWeight": 1,
-            "rowPadding": 4,
+            "rowPadding": 2,
             "outlineColor": {
               "solid": {
                 "color": "#E2E8F0"
